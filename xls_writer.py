@@ -15,11 +15,11 @@ class XLSWriter:
         "Tranche d'âge",  # 0
         "Unité",  # 1
         "Libellé du camp",  # 2
-        "Date de début",  # 3
-        "Date de fin",  # 4
+        "Début",  # 3
+        "Fin",  # 4
         "Lieu",  # 5
-        "Nombre de jeunes",  # 6
-        "Nombre de chefs",  # 7
+        "Jeunes",  # 6
+        "Chefs",  # 7
         "Directeur",  # 8
         "Alertes",  # 9
         "Warning",  # 10
@@ -34,10 +34,13 @@ class XLSWriter:
         self._worksheets: Dict[int, Worksheet] = {}
         self._worksheets_lines: Dict[int, int] = {}
         self._date_format = None
+        self._wrap_format = None
 
     def create(self):
         self._workbook = Workbook(self._filename, {'remove_timezone': True})
         self._date_format = self._workbook.add_format({'num_format': 'dd/mm/yy'})
+        self._wrap_format = self._workbook.add_format()
+        self._wrap_format.set_text_wrap()
         for group_id, group_name in self._groups.items():
             worksheet = self._workbook.add_worksheet(group_name)
             self._write_headers(worksheet)
@@ -45,6 +48,14 @@ class XLSWriter:
             self._worksheets_lines[group_id] = 1
 
     def close(self):
+        for worksheet in self._worksheets.values():
+            for i in [0, 6, 7, 11]:
+                worksheet.set_column(i, i, len(self.HEADERS[i]))
+            worksheet.set_column(1, 2, 30)
+            worksheet.set_column(3, 4, 10)
+            worksheet.set_column(5, 5, 20)
+            worksheet.set_column(8, 8, 20)
+            worksheet.set_column(9, 10, 50)
         self._workbook.close()
 
     def _write_headers(self, worksheet: Worksheet):
@@ -80,8 +91,8 @@ class XLSWriter:
         line = self._worksheets_lines[int(structure_du_territoire.code[:-2])]
         self._worksheets_lines[int(structure_du_territoire.code[:-2])] = line + 1
         worksheet.write(line, 0, camp.typeCamp.code)
-        worksheet.write(line, 1, structure_du_territoire.libelle)
-        worksheet.write(line, 2, camp.libelle)
+        worksheet.write(line, 1, structure_du_territoire.libelle, self._wrap_format)
+        worksheet.write(line, 2, camp.libelle, self._wrap_format)
         worksheet.write(line, 3, camp.dateDebut, self._date_format)
         worksheet.write(line, 4, camp.dateFin, self._date_format)
 
@@ -90,15 +101,15 @@ class XLSWriter:
         if detail:
             self._write_camp_detail(detail, worksheet, line)
 
-    @staticmethod
-    def _write_camp_detail(detail: GeneralCamp, worksheet: Worksheet, line: int):
-        if detail.campLieuPrincipal:
+    def _write_camp_detail(self, detail: GeneralCamp, worksheet: Worksheet, line: int):
+        if detail.campLieuPrincipal and detail.campLieuPrincipal.adresseLigne1:
             worksheet.write(
                 line,
                 5,
                 f"{detail.campLieuPrincipal.adresseLigne1}, "
                 f"{detail.campLieuPrincipal.tamRefCommune.codePostale if detail.campLieuPrincipal.tamRefCommune else None} "
-                f"{detail.campLieuPrincipal.tamRefCommune.libelle if detail.campLieuPrincipal.tamRefCommune else None}"
+                f"{detail.campLieuPrincipal.tamRefCommune.libelle if detail.campLieuPrincipal.tamRefCommune else None}",
+                self._wrap_format
             )
         if detail.camp817:
             worksheet.write(line, 6, detail.camp817.previsionNbreParticipants)
@@ -113,10 +124,12 @@ class XLSWriter:
         worksheet.write(
             line,
             9,
-            "\n".join(message.message for message in detail.campAlertMessages if message.level == "error")
+            "\n".join(message.message for message in detail.campAlertMessages if message.level == "error"),
+            self._wrap_format
         )
         worksheet.write(
             line,
             10,
-            "\n".join(message.message for message in detail.campAlertMessages if message.level == "warn")
+            "\n".join(message.message for message in detail.campAlertMessages if message.level == "warn"),
+            self._wrap_format
         )
